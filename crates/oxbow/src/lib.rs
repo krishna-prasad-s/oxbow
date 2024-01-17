@@ -143,8 +143,9 @@ pub async fn create_table_with(
     for field in arrow_schema.fields().iter() {
         match field.data_type() {
             deltalake::arrow::datatypes::DataType::Timestamp(unit, tz) => match unit {
+                deltalake::arrow::datatypes::TimeUnit::Nanosecond |
                 deltalake::arrow::datatypes::TimeUnit::Millisecond => {
-                    warn!("I have been asked to create a table with a Timestamp(millis) column ({}) that I cannot handle. Cowardly setting the Delta schema to pretend it is a Timestamp(micros)", field.name());
+                    warn!("I have been asked to create a table with a Timestamp(millis/nanos) column ({}) that I cannot handle. Cowardly setting the Delta schema to pretend it is a Timestamp(micros)", field.name());
                     let field = deltalake::arrow::datatypes::Field::new(
                         field.name(),
                         deltalake::arrow::datatypes::DataType::Timestamp(
