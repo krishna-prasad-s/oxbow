@@ -17,12 +17,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /**
- * convert is the main function to be called by the CLI or other "one shot" executors which just
+ * convert_or_append is the main function to be called by the CLI or other "one shot" executors which just
  * need to take a given location and convert it all at once
+ * and append where needed
  */
-pub async fn convert(
+ */
+pub async fn convert_or_append(
     location: &str,
     storage_options: Option<HashMap<String, String>>,
+    files: &[ObjectMeta],
 ) -> DeltaResult<DeltaTable> {
     let table_result = match storage_options {
         Some(ref so) => deltalake::open_table_with_storage_options(&location, so.clone()).await,
@@ -52,11 +55,44 @@ pub async fn convert(
                 info!("Appended files to table: {:?}", result);
                 debug!("Now the datatable is updated to {}", dtable);
             }
-            debug!("Append result: {:?}", result);            
             Ok(dtable)
         }
     }
+}    
+
+
+
+/**
+ * convert is the main function to be called by the CLI or other "one shot" executors which just
+ * need to take a given location and convert it all at once
+ */
+pub async fn convert(
+    location: &str,
+    storage_options: Option<HashMap<String, String>>,
+) -> DeltaResult<DeltaTable> {
+    let table_result = match storage_options {
+        Some(ref so) => deltalake::open_table_with_storage_options(&location, so.clone()).await,
+        None => deltalake::open_table(&location).await,
+    };
+    let (files, store) = get_files_and_store(location, storage_options).await?;
+
+    match table_result {
+        Err(e) => {
+            info!("No Delta table at {}: {:?}", location, e);
+            debug!(
+                "Files identified for turning into a delta table: {:?}",
+                files
+            );
+            create_table_with(&files, store.clone()).await
+        }
+        Ok(table) => {
+            warn!("There is already a Delta table at: {}", table);
+            Ok(table)
+        }
+    }
 }
+
+
 
 async fn get_files_and_store(
     location: &str,
