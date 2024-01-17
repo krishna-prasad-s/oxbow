@@ -4,6 +4,7 @@
 
 use gumdrop::Options;
 use tracing::log::*;
+use std::collections::HashMap;
 
 /*
  * Flags is a structure for managing command linke parameters
@@ -14,6 +15,12 @@ struct Flags {
     help: bool,
     #[options(help = "Table location, can also be set by TABLE_LOCATION")]
     table: Option<String>,
+    #[options(help = "tennant in Azure AD")]
+    tenant: Option<String>,
+    #[options(help = "clientID in Azure AD")]
+    clientid: Option<String>,
+    #[options(help = "client Secret in Azure AD")]
+    clientsecret: Option<String>
 }
 
 /*
@@ -24,6 +31,10 @@ impl Default for Flags {
         Flags {
             help: false,
             table: Some("s3://test-bucket/table".into()),
+            tenant: None,
+            clientid: None,
+            clientsecret: None,
+
         }
     }
 }
@@ -41,10 +52,10 @@ async fn main() -> Result<(), anyhow::Error> {
     debug!("Options as read: {:?}", flags);
     let location = table_location(&flags)?;
     info!("Using the table location of: {:?}", location);
-
-    oxbow::convert(&location, None)
-        .await
-        .expect("Failed to convert location");
+    let options = storage_options(&flags);
+    oxbow::convert(&location, options)
+    .await
+    .expect("Failed to convert location");            
     Ok(())
 }
 
@@ -57,6 +68,17 @@ fn table_location(flags: &Flags) -> Result<String, anyhow::Error> {
         None => Ok(std::env::var("TABLE_LOCATION")?),
         Some(path) => Ok(path.to_string()),
     }
+}
+
+fn storage_options(flags: &Flags) -> Option<HashMap<String, String>> {
+    if flags.clientid.is_none() || flags.clientsecret.is_none() || flags.tenant.is_none() {
+        return None;
+    }
+    let mut options = HashMap::new();
+    options.insert("azure_tenant_id".to_string(), flags.tenant);
+    options.insert("azure_client_id".to_string(), flags.clientid);
+    options.insert("azure_client_secret".to_string(), flags.clientsecret);
+    Some(options)
 }
 
 #[cfg(test)]

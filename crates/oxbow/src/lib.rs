@@ -21,11 +21,10 @@ use std::sync::Arc;
  * need to take a given location and convert it all at once
  * and append where needed
  */
- */
+ 
 pub async fn convert_or_append(
     location: &str,
-    storage_options: Option<HashMap<String, String>>,
-    files: &[ObjectMeta],
+    storage_options: Option<HashMap<String, String>>
 ) -> DeltaResult<DeltaTable> {
     let table_result = match storage_options {
         Some(ref so) => deltalake::open_table_with_storage_options(&location, so.clone()).await,
