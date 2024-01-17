@@ -75,9 +75,12 @@ fn storage_options(flags: &Flags) -> Option<HashMap<String, String>> {
         return None;
     }
     let mut options = HashMap::new();
-    options.insert("azure_tenant_id".to_string(), flags.tenant);
-    options.insert("azure_client_id".to_string(), flags.clientid);
-    options.insert("azure_client_secret".to_string(), flags.clientsecret);
+    let tenant = flags.tenant.clone().unwrap();
+    let clientid = flags.clientid.clone().unwrap();
+    let clientsecret = flags.clientsecret.clone().unwrap();
+    options.insert("azure_tenant_id".to_string(), tenant);
+    options.insert("azure_client_id".to_string(), clientid);
+    options.insert("azure_client_secret".to_string(), clientsecret);
     Some(options)
 }
 
