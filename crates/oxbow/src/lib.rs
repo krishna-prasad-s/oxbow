@@ -28,25 +28,12 @@ pub async fn convert(
         Some(ref so) => deltalake::open_table_with_storage_options(&location, so.clone()).await,
         None => deltalake::open_table(&location).await,
     };
+    let (files, store) = get_files_and_store(location, storage_options).await?;
+
 
     match table_result {
         Err(e) => {
             info!("No Delta table at {}: {:?}", location, e);
-            /*
-             * Parse the given location as a URL in a way that can be passed into
-             * some delta APIs
-             */
-            let location = match Url::parse(location) {
-                Ok(parsed) => parsed,
-                Err(_) => {
-                    let absolute = std::fs::canonicalize(location)
-                        .expect("Failed to canonicalize table location");
-                    Url::from_file_path(absolute)
-                        .expect("Failed to parse the location as a file path")
-                }
-            };
-            let store = object_store_for(&location, storage_options);
-            let files = discover_parquet_files(store.clone()).await?;
             debug!(
                 "Files identified for turning into a delta table: {:?}",
                 files
@@ -54,10 +41,43 @@ pub async fn convert(
             create_table_with(&files, store.clone()).await
         }
         Ok(table) => {
-            warn!("There is already a Delta table at: {}", table);
-            Ok(table)
+            let mut dtable = table;
+            warn!("There is already a Delta table at: {}", dtable);
+            /* Lets check if it needs an update */
+            let result = append_to_table(&files,&mut dtable).await;
+            if result.is_err() {
+                error!("Failed to append files to table: {:?}", result);
+                return Err(result.unwrap_err());
+            } else {
+                info!("Appended files to table: {:?}", result);
+                debug!("Now the datatable is updated to {}", dtable);
+            }
+            debug!("Append result: {:?}", result);            
+            Ok(dtable)
         }
     }
+}
+
+async fn get_files_and_store(
+    location: &str,
+    storage_options: Option<HashMap<String, String>>,
+) -> DeltaResult<(Vec<ObjectMeta>, Arc<DeltaObjectStore>)> {
+    /*
+     * Parse the given location as a URL in a way that can be passed into
+     * some delta APIs
+     */
+    let location = match Url::parse(location) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            let absolute = std::fs::canonicalize(location)
+                .expect("Failed to canonicalize table location");
+            Url::from_file_path(absolute)
+                .expect("Failed to parse the location as a file path")
+        }
+    };
+    let store = object_store_for(&location, storage_options);
+    let files = discover_parquet_files(store.clone()).await?;
+    Ok((files, store))
 }
 
 /**
